@@ -73,22 +73,8 @@ def load_audioFixedStart(filename, second=2.0, fixed_audio_start=False, start=0,
         waveform =  waveform[0:length].astype(np.float64) #use this for us
     return waveform.copy()
 
-def getTimeDimension(seconds):
-    #window = 400, hop = 154 --> 2sec = 208 timedim, 0.4sec = 42, 1sec = 104, 2.5sec = 260
-    #window = 25, hop = 10 --> 0.4sec = 641 (in t), 
-    #window = 25, hop = 15 --> 0.4sec = 427 (in t),
-    timeDim = 0
-    if seconds == 2.5:
-        timeDim = 260
-    elif seconds == 2:
-        timeDim = 208
-    elif seconds == 1:
-        timeDim = 104
-    elif seconds == 0.4:
-        timeDim = 42
-    else:
-        raise 'uknown time dimension'
-    return timeDim
+def getTimeDimension(seconds, hop):
+    return int(np.ceil(seconds * 16000 / hop))
 
 def shuffle(data:torch.Tensor):
     idx = torch.randperm(data.shape[-1])
@@ -96,10 +82,10 @@ def shuffle(data:torch.Tensor):
     #plot_features(data, title='fbfeatures', name='shuffleTest')
     return data
 
-def shuffleGrouped(data:torch.Tensor, seconds, group_size = 8):
+def shuffleGrouped(data:torch.Tensor, seconds, hop, group_size = 8):
     N,H,W = data.shape
     #1,3,2,0  -> 5, 15, 10, 0
-    timeDim = getTimeDimension(seconds) // group_size 
+    timeDim = getTimeDimension(seconds, hop) // group_size 
     idx = torch.randperm(timeDim)
     data = data.view(N, H, timeDim, -1)
     data = data[:,:,idx, :]
@@ -107,15 +93,15 @@ def shuffleGrouped(data:torch.Tensor, seconds, group_size = 8):
     #plot_features(data[0], title='fbfeatures', name='shuffleTest')
     return data
 
-def randomcut(data:torch.Tensor, seconds):
+def randomcut(data:torch.Tensor, seconds, hop):
     _,H,W = data.shape
-    timeDim = getTimeDimension(seconds)
+    timeDim = getTimeDimension(seconds, hop)
     start = int(torch.rand(1).item()*(W-timeDim))
     data = data[:, :,start:start+timeDim]
     #plot_features(data, title='fbfeatures', name='randomcutTest')
     return data
 
-def build_tsne(embeddings, spkrid, spkr_encoder):
+def build_tsne(embeddings, spkrid):
     return
     emb = []
     spkrids = []
