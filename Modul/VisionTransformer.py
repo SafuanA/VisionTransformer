@@ -12,41 +12,24 @@ from utils.features import Mel_Spectrogram
 from utils.amsoftmax import amsoftmax
 from utils.Helpers import getTimeDimension
 
-def CreateVisionTransformerSmall(pretrain, n_classes, shuffle_type, seconds, FcLayer = False):
-    timeDim = getTimeDimension(seconds)
+def vit_s(pretrain, n_classes, shuffle_type, seconds, hop, cls_pos, FcLayer = False):
+    timeDim = getTimeDimension(seconds, hop)
     return VisionTransformer(
                             img_size=(80, timeDim), patch_size=(80,1), in_chans=1,
                             embed_dim=192, depth=12, num_heads=3,
                             decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
                             mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6),
                             pretrain=pretrain, norm_file='files/mean_std_80.npy', n_classes=n_classes,
-                            shuffle_type=shuffle_type, seconds=seconds, FcLayer = FcLayer)
+                            shuffle_type=shuffle_type, seconds=seconds, hop=hop, cls_pos=cls_pos, FcLayer = FcLayer)
 
-def CreateVisionTransformer(pretrain, n_classes, shuffle_type, seconds, FcLayer = False):
-    timeDim = getTimeDimension(seconds)
+def vit_m(pretrain, n_classes, shuffle_type, seconds, hop, cls_pos, FcLayer = False):
+    timeDim = getTimeDimension(seconds, hop)
     return VisionTransformer(img_size=(80, timeDim), patch_size=(80,1), in_chans=1,
                             embed_dim=384, depth=12, num_heads=3,
                             decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
                             mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6),
                             pretrain=pretrain, norm_file='files/mean_std_80.npy', n_classes=n_classes,
-                           shuffle_type=shuffle_type, seconds=seconds, FcLayer = FcLayer)
-
-def CreateVisionTransformer2(pretrain, n_classes, shuffle_type, seconds, FcLayer = False):
-    timeDim = getTimeDimension(seconds)
-    return VisionTransformer(img_size=(80, timeDim), patch_size=(80,1), in_chans=1,
-                            embed_dim=384, depth=12, num_heads=3,
-                            decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
-                            mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6),
-                            pretrain=pretrain, norm_file='files/mean_std_80.npy', n_classes=n_classes,
-                            shuffle_type=shuffle_type, seconds=seconds, FcLayer = FcLayer, mask_type=2)
-def CreateVisionTransformer3(pretrain, n_classes, shuffle_type, seconds, FcLayer = False):
-    timeDim = getTimeDimension(seconds)
-    return VisionTransformer(img_size=(80, timeDim), patch_size=(80,1), in_chans=1,
-                            embed_dim=2048, depth=6, num_heads=8,
-                            decoder_embed_dim=2048, decoder_depth=3, decoder_num_heads=8,
-                            mlp_ratio=1, norm_layer=partial(nn.LayerNorm, eps=1e-6),
-                            pretrain=pretrain, norm_file='files/mean_std_80.npy', n_classes=n_classes,
-                            shuffle_type=shuffle_type, seconds=seconds, FcLayer = FcLayer, mask_type=2)
+                           shuffle_type=shuffle_type, seconds=seconds, hop=hop, cls_pos=cls_pos, FcLayer = FcLayer)
 
 #use our own patchembeddings to release restrictions so we can make frame based prediction
 class PatchEmbed(nn.Module):
@@ -84,11 +67,12 @@ class VisionTransformer(nn.Module):
                  decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
                  mlp_ratio=4., norm_layer=nn.LayerNorm,
                  norm_file='files/mean_std.npy', pretrain=False, n_classes=1211, 
-                 shuffle_type=None, seconds=2, FcLayer = False, mask_type=1):
+                 shuffle_type=None, seconds=2, FcLayer = False, hop=154, cls_pos=False, mask_type=1):
         super().__init__()
         self.pretrain = pretrain
+        self.cls_pos = cls_pos
         # Mel Spectrogram
-        self.mel = Mel_Spectrogram(shuffle_type=shuffle_type, seconds=seconds, mask_type=True)
+        self.mel = Mel_Spectrogram(shuffle_type=shuffle_type, seconds=seconds, mask_type=True, hop=hop)
         mean_std_file = np.load(norm_file, allow_pickle=True).item()
         AVAIL_GPUS = torch.cuda.device_count()
         if AVAIL_GPUS > 0:
@@ -148,12 +132,18 @@ class VisionTransformer(nn.Module):
     def initialize_weights(self):
         # initialization
         # initialize (and freeze) pos_embed by sin-cos embedding
-        pos_embed = get_2d_sincos_pos_embed(self.pos_embed.shape[-1], self.patch_embed.grid_size[0], self.patch_embed.grid_size[1], cls_token=True)
-        self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
+        if self.cls_pos:
+            pos_embed = get_2d_sincos_pos_embed(self.pos_embed.shape[-1], self.patch_embed.grid_size[0], self.patch_embed.grid_size[1], cls_token=False)
+            self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
 
-        decoder_pos_embed = get_2d_sincos_pos_embed(self.decoder_pos_embed.shape[-1], self.patch_embed.grid_size[0], self.patch_embed.grid_size[1], cls_token=True)
-        self.decoder_pos_embed.data.copy_(torch.from_numpy(decoder_pos_embed).float().unsqueeze(0))
+            decoder_pos_embed = get_2d_sincos_pos_embed(self.decoder_pos_embed.shape[-1], self.patch_embed.grid_size[0], self.patch_embed.grid_size[1], cls_token=False)
+            self.decoder_pos_embed.data.copy_(torch.from_numpy(decoder_pos_embed).float().unsqueeze(0))
+        else:
+            pos_embed = get_2d_sincos_pos_embed(self.pos_embed.shape[-1], self.patch_embed.grid_size[0], self.patch_embed.grid_size[1], cls_token=True)
+            self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
 
+            decoder_pos_embed = get_2d_sincos_pos_embed(self.decoder_pos_embed.shape[-1], self.patch_embed.grid_size[0], self.patch_embed.grid_size[1], cls_token=True)
+            self.decoder_pos_embed.data.copy_(torch.from_numpy(decoder_pos_embed).float().unsqueeze(0))
         # initialize patch_embed like nn.Linear (instead of nn.Conv2d)
         w = self.patch_embed.proj.weight.data
         torch.nn.init.xavier_uniform_(w.view([w.shape[0], -1]))

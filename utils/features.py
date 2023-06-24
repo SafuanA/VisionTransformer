@@ -90,22 +90,22 @@ class Mel_Spectrogram(nn.Module):
         x = self.instance_norm(x)
 
         if self.shuffle_type.upper() == 'SS': #total random shuffled
-            x = randomcut(x, self.seconds)
+            x = randomcut(x, self.seconds, self.hop)
             x = shuffle(x)
         elif self.shuffle_type.upper() == 'SSG': #total shuffle by group
             x = randomcut(x, self.seconds)
-            x = shuffleGrouped(x, self.seconds)
+            x = shuffleGrouped(x, self.seconds, self.hop)
         elif self.shuffle_type.upper() == 'SSC': #shuffle by ids saved in txt
             x = randomcut(x, self.seconds)
             x = x[:,:,self.ids_shuffle]
         elif self.shuffle_type.upper() == 'SU':
             x = shuffle(x)
-            x = randomcut(x, self.seconds)
+            x = randomcut(x, self.seconds, self.hop)
         elif self.shuffle_type.upper() == 'SUC':
             x = x[:,:,self.ids_shuffle]
-            x = randomcut(x, self.seconds)
+            x = randomcut(x, self.seconds, self.hop)
         else:
-            x = randomcut(x, self.seconds)
+            x = randomcut(x, self.seconds, self.hop)
 
         if train and self.mask_freqTime:
             x = self.freqm(x)

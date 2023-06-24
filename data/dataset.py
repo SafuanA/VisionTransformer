@@ -27,8 +27,6 @@ class TrainDataset(Dataset):
             df = df.drop_duplicates(subset=['wav'])
             df = df.assign(start=0)
             df = df.assign(stop=0)
-        if not top_n_rows:
-            df = shuffle(df) #remove shuffling for future work, for reproducability and shuffle with pytorch/pl
         df = df.reset_index(drop=True)
         self.df = df#.T.to_dict('list')
 

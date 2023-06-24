@@ -11,7 +11,7 @@ from Scheduler.CosineWarmupScheduler import CosineWarmupScheduler
 from Scheduler.PlateauScheduler import MetricTracker, PlateauScheduler
 from utils.plotting import plot_features_sequence, plot_features
 from data.DataModul import SPKDataModul
-from Modul.VisionTransformer import CreateVisionTransformerSmall, CreateVisionTransformer,CreateVisionTransformer2, CreateVisionTransformer3
+from Modul.VisionTransformer import vit_s, vit_m
 from Modul.Dummy import CreateDummy
 from data.speaker_encoder import SpeakerEncoder
 from utils import score
@@ -37,13 +37,9 @@ class Task(LightningModule):
         self.pretrain = self.hparams.pretrain
         if self.hparams.modul_name == "VisionTransformer":
             if self.hparams.model_size == "small":
-                self.model = CreateVisionTransformerSmall(self.pretrain, n_classes, self.hparams.shuffle_type, self.hparams.second)
+                self.model = vit_s(self.pretrain, n_classes, self.hparams.shuffle_type, self.hparams.second, self.hparams.hop, self.hparams.cls_pos)
             if self.hparams.model_size == "medium":
-                self.model = CreateVisionTransformer(self.pretrain, n_classes, self.hparams.shuffle_type, self.hparams.second)
-            if self.hparams.model_size == "medium2":
-                self.model = CreateVisionTransformer2(self.pretrain, n_classes, self.hparams.shuffle_type, self.hparams.second)
-            if self.hparams.model_size == "medium3":
-                self.model = CreateVisionTransformer3(self.pretrain, n_classes, self.hparams.shuffle_type, self.hparams.second)
+                self.model = vit_m(self.pretrain, n_classes, self.hparams.shuffle_type, self.hparams.second, self.hparams.hop, self.hparams.cls_pos)
             return
         elif self.hparams.modul_name == "Dummy":
             self.model = CreateDummy()
@@ -65,14 +61,6 @@ class Task(LightningModule):
             if(batch_idx == 0 and self.pretrain and train):
                 plot_features(self.model.unpatchify(x)[0],title='patches')
                 plot_features(self.model.unpatchify(tgt)[0],title='patches_org', name='original_')
-        elif self.hparams.modul_name == "SeqPredictorTransformer":
-            loss, embedding, mel = self.model(batch)
-            if(batch_idx == 0 and self.pretrain and train):
-                plot_features_sequence(embedding[0].T, mel[0].T)
-        elif self.hparams.modul_name == "ProjTransformer":
-            loss, embedding, mel = self.model(batch)
-            if(batch_idx == 0 and self.pretrain and train):
-                plot_features_sequence(embedding[0].T, mel[0].T)
         elif self.hparams.modul_name == "Dummy":
             loss, embedding, mel = self.model(batch)
         elif self.hparams.modul_name == "BasicTransformer":
@@ -234,12 +222,14 @@ class Task(LightningModule):
         parser.add_argument("--model_size", type=str, default="small")
         parser.add_argument("--save_dir", type=str, default="results")
         parser.add_argument("--accumulate_grad_batch", type=int, default=40)
+        parser.add_argument("--hop", type=int, default=154)
+        parser.add_argument('--cls_pos', action='store_true')
 
         parser.add_argument("--checkpoint", type=str, default=None)
         parser.add_argument("--top_n_rows", type=int, default=None)
         parser.add_argument("--resume", type=str, default=None)
 
-        files = 'files'
+        files = 'files/'
         if platform == "linux" or platform == "linux2":    
             files = 'files/Linux/'
         parser.add_argument("--train_csv_path", type=str, default=files+"train.csv")
@@ -306,7 +296,7 @@ def cli_main():
     
 
     assert args.save_dir is not None
-    checkpoint_callback = ModelCheckpoint(monitor='train_loss', save_top_k=100, #this was a mistake we just shoulda went after val loss
+    checkpoint_callback = ModelCheckpoint(monitor='val_loss', save_top_k=100, #this was a mistake we just shoulda went after val loss
            filename="{epoch}_{train_loss:.2f}", dirpath=args.save_dir)
     #checkpoint_callback = ModelCheckpoint(monitor='valid_loss', save_top_k=1,
     #       filename="{epoch}_{valid_loss:.2f}", dirpath=args.save_dir)
