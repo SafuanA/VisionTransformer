@@ -296,7 +296,7 @@ def cli_main():
     
 
     assert args.save_dir is not None
-    checkpoint_callback = ModelCheckpoint(monitor='val_loss', save_top_k=100, #this was a mistake we just shoulda went after val loss
+    checkpoint_callback = ModelCheckpoint(monitor='valid_loss', save_top_k=100, #this was a mistake we just shoulda went after val loss
            filename="{epoch}_{train_loss:.2f}", dirpath=args.save_dir)
     #checkpoint_callback = ModelCheckpoint(monitor='valid_loss', save_top_k=1,
     #       filename="{epoch}_{valid_loss:.2f}", dirpath=args.save_dir)
