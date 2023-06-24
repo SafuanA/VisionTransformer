@@ -132,7 +132,7 @@ class VisionTransformer(nn.Module):
     def initialize_weights(self):
         # initialization
         # initialize (and freeze) pos_embed by sin-cos embedding
-        if self.cls_pos:
+        if not self.cls_pos: #if true uses positional encoding for the cls stoken
             self.pos_embed.data.copy_(getPosEncoding(self.pos_embed.shape[-1], self.patch_embed.grid_size[1], True))
             self.decoder_pos_embed.data.copy_(getPosEncoding(self.decoder_pos_embed.shape[-1], self.patch_embed.grid_size[1], True))
         else:
@@ -359,7 +359,7 @@ def getPosEncoding(embed_dim, seq_len, cls_token=False):
     pe[:, 0::2] = torch.sin(positions * denominator)
     pe[:, 1::2] = torch.cos(positions * denominator)
     if cls_token:
-        pe = np.concatenate([np.zeros([1, embed_dim]), pe], axis=0)
+        pe = torch.concatenate([torch.zeros([1, embed_dim]), pe], axis=0)
     pe = pe.unsqueeze(0)
     return pe
 
