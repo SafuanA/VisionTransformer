@@ -133,17 +133,17 @@ class VisionTransformer(nn.Module):
         # initialization
         # initialize (and freeze) pos_embed by sin-cos embedding
         if self.cls_pos:
-            pos_embed = get_2d_sincos_pos_embed(self.pos_embed.shape[-1], self.patch_embed.grid_size[0], self.patch_embed.grid_size[1], cls_token=False)
-            self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
-
-            decoder_pos_embed = get_2d_sincos_pos_embed(self.decoder_pos_embed.shape[-1], self.patch_embed.grid_size[0], self.patch_embed.grid_size[1], cls_token=False)
-            self.decoder_pos_embed.data.copy_(torch.from_numpy(decoder_pos_embed).float().unsqueeze(0))
+            self.pos_embed.data.copy_(getPosEncoding(self.pos_embed.shape[-1], self.patch_embed.grid_size[1], True))
+            self.decoder_pos_embed.data.copy_(getPosEncoding(self.decoder_pos_embed.shape[-1], self.patch_embed.grid_size[1], True))
         else:
-            pos_embed = get_2d_sincos_pos_embed(self.pos_embed.shape[-1], self.patch_embed.grid_size[0], self.patch_embed.grid_size[1], cls_token=True)
+            self.pos_embed.data.copy_(getPosEncoding(self.pos_embed.shape[-1], self.patch_embed.grid_size[1] + 1, False))
+            self.decoder_pos_embed.data.copy_(getPosEncoding(self.decoder_pos_embed.shape[-1], self.patch_embed.grid_size[1] + 1, False))
+
+            """pos_embed = get_2d_sincos_pos_embed(self.pos_embed.shape[-1], self.patch_embed.grid_size[0], self.patch_embed.grid_size[1], cls_token=True)
             self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
 
             decoder_pos_embed = get_2d_sincos_pos_embed(self.decoder_pos_embed.shape[-1], self.patch_embed.grid_size[0], self.patch_embed.grid_size[1], cls_token=True)
-            self.decoder_pos_embed.data.copy_(torch.from_numpy(decoder_pos_embed).float().unsqueeze(0))
+            self.decoder_pos_embed.data.copy_(torch.from_numpy(decoder_pos_embed).float().unsqueeze(0))"""
         # initialize patch_embed like nn.Linear (instead of nn.Conv2d)
         w = self.patch_embed.proj.weight.data
         torch.nn.init.xavier_uniform_(w.view([w.shape[0], -1]))
@@ -347,6 +347,22 @@ class VisionTransformer(nn.Module):
 # Transformer: https://github.com/tensorflow/models/blob/master/official/nlp/transformer/model_utils.py
 # MoCo v3: https://github.com/facebookresearch/moco-v3
 # --------------------------------------------------------
+
+def getPosEncoding(embed_dim, seq_len, cls_token=False):
+    pe = torch.zeros(seq_len, embed_dim, requires_grad=False)
+    positions = torch.arange(0, seq_len).unsqueeze(1).float()
+    denominator = torch.exp(
+        torch.arange(0, embed_dim, 2).float()
+        * -(math.log(10000.0) / embed_dim)
+    )
+
+    pe[:, 0::2] = torch.sin(positions * denominator)
+    pe[:, 1::2] = torch.cos(positions * denominator)
+    if cls_token:
+        pe = np.concatenate([np.zeros([1, embed_dim]), pe], axis=0)
+    pe = pe.unsqueeze(0)
+    return pe
+
 def get_2d_sincos_pos_embed(embed_dim, grid_size_h, grid_size_w, cls_token=False):
     grid_h = np.arange(grid_size_h, dtype=np.float32)
     grid_w = np.arange(grid_size_w, dtype=np.float32)
