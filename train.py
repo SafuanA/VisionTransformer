@@ -133,7 +133,7 @@ class Task(LightningModule):
             index_mapping = self.index_mapping
             sprk_ids_pair = self.sprk_ids_pair
 
-        build_tsne(eval_vectors, sprk_ids_pair, self.speaker_encoder)
+        build_tsne(eval_vectors, sprk_ids_pair)
         #https://www.isca-speech.org/archive_v0/Interspeech_2017/pdfs/0803.PDF
         #mean centering
         eval_vectors = self.eval_vectors - np.mean(self.eval_vectors, axis=0)
@@ -297,7 +297,7 @@ def cli_main():
 
     assert args.save_dir is not None
     checkpoint_callback = ModelCheckpoint(monitor='valid_loss', save_top_k=100, #this was a mistake we just shoulda went after val loss
-           filename="{epoch}_{train_loss:.2f}", dirpath=args.save_dir)
+           filename="{epoch}_{valid_loss:.2f}", dirpath=args.save_dir)
     #checkpoint_callback = ModelCheckpoint(monitor='valid_loss', save_top_k=1,
     #       filename="{epoch}_{valid_loss:.2f}", dirpath=args.save_dir)
 
